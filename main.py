@@ -4,7 +4,7 @@ import tushare as ts  # TuShare is a utility for crawling historical data of Chi
 import time
 import math
 from pyecharts import Line
-from keras.models import Sequential  # Keras需要先装tensorflow
+from keras.models import Sequential  # before using keras, install Tensorflow first
 from keras.layers.core import Dense, Dropout, Activation, Flatten
 from keras.layers.recurrent import LSTM
 from keras.layers.convolutional import Conv1D
@@ -104,7 +104,6 @@ def build_LSTM_model():
     model.add(Activation("linear"))
 
     model.compile(loss="mse", optimizer="rmsprop", metrics=['accuracy'])
-#     print("Compilation Time : ", time.time() - start)
     return model
 
 
@@ -129,7 +128,6 @@ def build_CNN_LSTM_model():
 
     start = time.time()
     model.compile(loss="mse", optimizer="rmsprop", metrics=['accuracy'])
-    #     print("Compilation Time : ", time.time() - start)
     return model
 
 
@@ -183,7 +181,6 @@ def build_ANN_model():
 
     start = time.time()
     model.compile(loss="mse", optimizer="rmsprop" , metrics=['accuracy'])
-    #     print("Compilation Time : ", time.time() - start)
     return model
 
 
@@ -206,88 +203,82 @@ def visualize_pyecharts(pred, y_test, date, periods):
     line = Line("Test Result")
     line.add("Prediction", days, pred[-periods:], is_smooth=True)
     line.add("Ground Truth", days, y_test[-periods:], is_smooth=True)
-    line.render() # 会生成一个render的html文件
-#     return line
+    line.render() # generate render.html
 
 
-# 点击“训练模型”开始的内容吧
-# data sample setting（可修改的参数，下边的值作为默认值）
-category = 'index'
-stock_code = '399300.SZ'
-# 举例
-# category = 'stock'
-# stock_code = '000001.SZ'
+if __name__ == '__main__':
+    # data sample setting
+    category = 'index'
+    stock_code = '399300.SZ'
+    start_date = '2006-01-01'  
 
-start_date = '2006-01-01'  # 用户不可修改
+    # Get data
+    df, date = get_data(
+        category=category,
+        stock_code=stock_code,
+        start_date=start_date,
+        end_date=None)
 
-# Get data
-df, date = get_data(
-    category=category,
-    stock_code=stock_code,
-    start_date=start_date,
-    end_date=None)
+    if df.shape[0] == 0:
+        raise Exception("Invalid stock code!")
 
-if df.shape[0] == 0:
-    raise Exception("Invalid stock code!")
+    # Model setting
+    hidden_layer1 = 10
+    hidden_layer2 = 10
+    window = 20
+    dropout = 0.2
+    batch_size = 500
+    epochs = 10
+    periods = 20  # prediction time period
+    output = 1  
 
-# Model setting（可修改的参数，下边的值作为默认值）
-hidden_layer1 = 10
-hidden_layer2 = 10
-window = 20
-dropout = 0.2
-batch_size = 500
-epochs = 10
-periods = 20  # 预测结果显示的时间区间
+    hyperparameter = [hidden_layer1, hidden_layer2, window, batch_size, epochs, periods]
+    for i in hyperparameter:
+        if not isinstance(i, int) or i <= 0:
+            raise Exception("Invalid hyperparameter!")
 
-output = 1  # 用户不可修改
-
-hyperparameter = [hidden_layer1, hidden_layer2, window, batch_size, epochs, periods]
-for i in hyperparameter:
-    if not isinstance(i, int) or i <= 0:
+    if not isinstance(dropout, float) or dropout > 1 or dropout < 0:
         raise Exception("Invalid hyperparameter!")
 
-if not isinstance(dropout, float) or dropout > 1 or dropout < 0:
-    raise Exception("Invalid hyperparameter!")
+    # Preprocess
+    X_train, y_train, X_test, y_test, preprocessor_X, preprocessor_y = preprocess_data(df, window)
 
-# Preprocess
-X_train, y_train, X_test, y_test, preprocessor_X, preprocessor_y = preprocess_data(df, window)
+    # Choose model
+    model = build_CNN_LSTM_model()
 
-# Choose model(可以选择的模型：build_ANN_model(),build_CNN_model(),build_LSTM_model(),build_CNN_LSTM_model())
-model = build_ANN_model()
+    # Trainning
+    model.fit(
+        X_train,
+        y_train,
+        batch_size=batch_size,
+        epochs=epochs,
+        verbose=0)
 
-# Trainning
-model.fit(
-    X_train,
-    y_train,
-    batch_size=batch_size,
-    epochs=epochs,
-    verbose=0)
+    # Predict and Scale back
+    pred = model.predict(X_test)
+    pred = preprocessor_y.inverse_transform(pred)
+    y_test = preprocessor_y.inverse_transform(y_test)
 
-# Predict and Scale back
-pred = model.predict(X_test)
-pred = preprocessor_y.inverse_transform(pred)
-y_test = preprocessor_y.inverse_transform(y_test)
+    # Evaluation
+    trainScore = model.evaluate(X_train, y_train, verbose=0)
+    print('Train Score: %.5f MSE (%.5f RMSE)' % (trainScore[0], math.sqrt(trainScore[0])))
 
-# Evaluation
-trainScore = model.evaluate(X_train, y_train, verbose=0)
-print('Train Score: %.5f MSE (%.5f RMSE)' % (trainScore[0], math.sqrt(trainScore[0])))
+    testScore = model.evaluate(X_test, y_test, verbose=0)
+    print('Test Score: %.1f MSE (%.1f RMSE)' % (testScore[0], math.sqrt(testScore[0])))
 
-testScore = model.evaluate(X_test, y_test, verbose=0)
-print('Test Score: %.1f MSE (%.1f RMSE)' % (testScore[0], math.sqrt(testScore[0])))
+    diff = []
+    ratio = []
+    for u in range(len(y_test)):
+        pr = pred[u][0]
+        ratio.append((pr/y_test[u]) - 1)
+        diff.append(abs(y_test[u] - pr))
+    diff = np.array(diff)
+    ratio = np.array(ratio)
+    print('Mean Difference: %.2f' % diff.mean())
+    print('Ratio Difference: %.2f' % ratio.mean())
 
-diff = []
-ratio = []
-for u in range(len(y_test)):
-    pr = pred[u][0]
-    ratio.append((pr/y_test[u]) - 1)
-    diff.append(abs(y_test[u] - pr))
-diff = np.array(diff)
-ratio = np.array(ratio)
-print('Mean Difference: %.2f' % diff.mean())
-print('Ratio Difference: %.2f' % ratio.mean())
+    y_nextday = predict_nextday(model, df, window, preprocessor_X, preprocessor_y)
+    print('Prediction Valune on Next day: %.2f' % y_nextday)
 
-y_nextday = predict_nextday(model, df, window, preprocessor_X, preprocessor_y)
-print('Prediction Valune on Next day: %.2f' % y_nextday)
-
-# Visulization
-visualize_pyecharts(pred, y_test, date, periods)
+    # Visulization
+    visualize_pyecharts(pred, y_test, date, periods)
