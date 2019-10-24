@@ -1,8 +1,8 @@
-# Stock-Prediction-with-CNN-LSTM-Model-
+# Stock-Prediction-with-CNN-LSTM-Model
 
 Combining the advantages of feature extraction of CNN model and sequence data analysis of LSTM model, this project applies the combined model CNN-LSTM to financial time series analysis and uses historical trading day data to predict the closing point of the next day.
 
-At the same time, this project also conduc that the proposed CNN-LSTM model has certain advantages in prediction accuracy compared with the single-structure CNN model, LSTM model and ANN model. 
+At the same time, this project confirmed CNN-LSTM model has certain advantages in prediction accuracy compared with the single-structure CNN model, LSTM model and ANN model. 
 
 ---------
 
